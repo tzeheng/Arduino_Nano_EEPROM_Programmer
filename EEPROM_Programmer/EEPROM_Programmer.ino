@@ -5,12 +5,12 @@
 #define EEPROM_D7 12
 #define WRITE_EN 13
 
-const byte numChars = 65;
+const byte numChars = 64;
 char mode = 'x';
 int size = 0;
 int os = 0;
 int debug = 0;
-char receivedChars[numChars];  // an array to store the received data
+char receivedChars[numChars] = {0xaa, 0xaa, 0xaa, 0xaa};  // an array to store the received data
 
 
 boolean newData = false;
@@ -102,7 +102,7 @@ void writeEEPROM(int address, byte data) {
  * Read the contents of the EEPROM and print them to the serial monitor.
  */
 void printContents() {
-  for (int base = 0; base <= size * 128 - 1; base += 16) {
+  for (int base = 0; base <= (size * 128 - 1); base += 16) {
     byte data[16];
     for (int offset = 0; offset <= 15; offset += 1) {
       data[offset] = readEEPROM(base + offset);
@@ -138,13 +138,32 @@ void eraseContents() {
  */
 void writeContents() {
   // Program data bytes
-  for (int address = 0; address < sizeof(receivedChars) - 1; address ++) {
+  for (int address = 0; address < numChars; address++) {
     writeEEPROM(address + os, receivedChars[address]);
     //Serial.println(address + os);
   }
   newData = false;
 }
 
+
+// new receive numChars bytes per packet
+void recvNumChars() {
+  static byte ndx = 0;
+  char rc;
+
+  while (Serial.available() > 0 && newData == false) {
+    rc = Serial.read();
+    if (ndx < numChars) {
+      receivedChars[ndx] = rc;
+      ndx++;
+    } else {
+      ndx = 0;
+      newData = true;
+    }
+  }
+}
+
+// Original receive until newline
 void recvWithEndMarker() {
   static byte ndx = 0;
   char endMarker = '\n';
@@ -272,7 +291,9 @@ void setup() {
 
 
 void loop() {
-  recvWithEndMarker();
+  while (mode == 'x' & newData == false) {
+    recvWithEndMarker();
+  }
   if (mode == 'x' & newData == true) {
     mode = receivedChars[0];
     memmove(receivedChars, receivedChars + 1, strlen(receivedChars));
@@ -303,11 +324,13 @@ void loop() {
     // Read and print out the contents of the EERPROM
     if (newData == true) {
       writeContents();
-      os += (numChars - 1);
+      os += (numChars);
     }
-    if (os >= size * 127 - 1){
+    if (os >= (size * 128 - 1)) {
       Serial.println("DONE!");
       mode = 'x';
+      os = 0;
     }
   }
+  recvNumChars();
 }

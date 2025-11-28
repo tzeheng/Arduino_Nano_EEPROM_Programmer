@@ -71,12 +71,12 @@ if __name__ == '__main__':
         f = open(args.f, 'rb')
         for piece in read_in_chunks(f):
             loop = loop + 1
-            piece = piece + b'\n'
             print(piece.hex())
+            piece += b'\0'
             ser.write(piece)
+            time.sleep(1)
             if (loop >= args.s * 2):
                 break
-            time.sleep(1)
         f.close()
 
 
